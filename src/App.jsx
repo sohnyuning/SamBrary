@@ -133,8 +133,9 @@ export default function App() {
       });
       setEditingReview(null);
       await loadData();
-    } catch (e) {
-      alert("저장에 실패했어요: " + e.message);
+      } catch (e) {
+  alert("저장 실패: " + JSON.stringify(e.message) + " / " + e.toString());
+  }
     } finally {
       setSaving(false);
     }
