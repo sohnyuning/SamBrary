@@ -28,7 +28,7 @@ async function sbFetch(path, options = {}) {
 
 export default function App() {
   const [records, setRecords] = useState([]);
-  const [memberNames, setMemberNames] = useState(["멤버 1", "멤버 2", "멤버 3"]);
+  const [memberNames, setMemberNames] = useState(["멤버1", "멤버2", "멤버3"]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [lastSync, setLastSync] = useState(null);
@@ -36,12 +36,10 @@ export default function App() {
 
   const [showForm, setShowForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [editingNames, setEditingNames] = useState(["멤버 1", "멤버 2", "멤버 3"]);
+  const [editingNames, setEditingNames] = useState(["멤버1", "멤버2", "멤버3"]);
   const [form, setForm] = useState({ date: "", book: "", author: "", reviews: {} });
   const [expandedId, setExpandedId] = useState(null);
-
-  // 한줄평 인라인 편집 상태
-  const [editingReview, setEditingReview] = useState(null); // { recordId, memberName }
+  const [editingReview, setEditingReview] = useState(null);
   const [editingText, setEditingText] = useState("");
 
   const loadData = useCallback(async () => {
@@ -69,9 +67,13 @@ export default function App() {
   }, [loadData]);
 
   function openForm() {
-    const reviews = {};
-    memberNames.forEach(n => reviews[n] = "");
-    setForm({ date: new Date().toISOString().split("T")[0], book: "", author: "", reviews });
+    // 인덱스 기반으로 reviews 초기화 (0, 1, 2)
+    setForm({
+      date: new Date().toISOString().split("T")[0],
+      book: "",
+      author: "",
+      reviews: { "0": "", "1": "", "2": "" }
+    });
     setShowForm(true);
   }
 
@@ -102,7 +104,10 @@ export default function App() {
     if (!confirm("이 기록을 삭제할까요?")) return;
     setSaving(true);
     try {
-      await sbFetch(`records?id=eq.${id}`, { method: "DELETE", headers: { "Prefer": "" } });
+      await sbFetch(`records?id=eq.${id}`, {
+        method: "DELETE",
+        headers: { "Prefer": "" }
+      });
       await loadData();
     } catch (e) {
       alert("삭제에 실패했어요.");
@@ -111,19 +116,17 @@ export default function App() {
     }
   }
 
-  // 한줄평 편집 시작
-  function startEditReview(e, recordId, memberName, currentText) {
+  function startEditReview(e, recordId, idx, currentText) {
     e.stopPropagation();
-    setEditingReview({ recordId, memberName });
+    setEditingReview({ recordId, idx });
     setEditingText(currentText || "");
   }
 
-  // 한줄평 저장
   async function saveReview(recordId) {
     setSaving(true);
     try {
       const rec = records.find(r => r.id === recordId);
-      const newReviews = { ...rec.reviews, [editingReview.memberName]: editingText.trim() };
+      const newReviews = { ...rec.reviews, [String(editingReview.idx)]: editingText.trim() };
       await sbFetch(`records?id=eq.${recordId}`, {
         method: "PATCH",
         body: JSON.stringify({ reviews: newReviews }),
@@ -140,16 +143,8 @@ export default function App() {
   async function saveNames() {
     setSaving(true);
     try {
-      const trimmed = editingNames.map((n, i) => n.trim() || `멤버 ${i + 1}`);
-      const oldNames = memberNames;
-      for (const rec of records) {
-        const newReviews = {};
-        trimmed.forEach((name, i) => { newReviews[name] = rec.reviews[oldNames[i]] || ""; });
-        await sbFetch(`records?id=eq.${rec.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ reviews: newReviews }),
-        });
-      }
+      const trimmed = editingNames.map((n, i) => n.trim() || `멤버${i + 1}`);
+      // 이름만 바꾸면 됨 — reviews는 인덱스 기반이라 그대로
       await sbFetch("settings?key=eq.members", {
         method: "PATCH",
         body: JSON.stringify({ value: trimmed }),
@@ -196,7 +191,7 @@ export default function App() {
 
       <main style={styles.main}>
         {error && <div style={styles.errorBox}>{error}</div>}
-        <div style={styles.notice}>🔗 3명이 실시간 공유 · 한줄평은 연필 눌러서 수정 가능해요</div>
+        <div style={styles.notice}>🔗 3명이 실시간 공유 · ✏️ 눌러서 한줄평 수정 가능</div>
 
         {records.length === 0 && !error && (
           <div style={styles.empty}>
@@ -225,10 +220,11 @@ export default function App() {
 
               {isOpen && (
                 <div style={styles.reviews}>
-                  {memberNames.map(name => {
-                    const isEditing = editingReview?.recordId === rec.id && editingReview?.memberName === name;
+                  {memberNames.map((name, i) => {
+                    const isEditing = editingReview?.recordId === rec.id && editingReview?.idx === i;
+                    const reviewText = rec.reviews?.[String(i)] || "";
                     return (
-                      <div key={name} style={styles.reviewRow}>
+                      <div key={i} style={styles.reviewRow}>
                         <div style={styles.reviewName}>{name}</div>
                         <div style={{ flex: 1 }}>
                           {isEditing ? (
@@ -248,13 +244,9 @@ export default function App() {
                           ) : (
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <div style={styles.reviewText}>
-                                {rec.reviews?.[name] || <span style={{ opacity: 0.35 }}>아직 한줄평이 없어요</span>}
+                                {reviewText || <span style={{ opacity: 0.35 }}>아직 한줄평이 없어요</span>}
                               </div>
-                              <button
-                                style={styles.editReviewBtn}
-                                onClick={e => startEditReview(e, rec.id, name, rec.reviews?.[name])}
-                                title="수정"
-                              >✏️</button>
+                              <button style={styles.editReviewBtn} onClick={e => startEditReview(e, rec.id, i, reviewText)}>✏️</button>
                             </div>
                           )}
                         </div>
@@ -280,10 +272,15 @@ export default function App() {
             <input style={styles.input} placeholder="예: 한강" value={form.author} onChange={e => setForm(f => ({ ...f, author: e.target.value }))} />
             <div style={styles.divider} />
             <div style={{ fontSize: 12, color: "#7a6f5e" }}>* 한줄평은 나중에 카드에서도 수정할 수 있어요</div>
-            {memberNames.map(name => (
-              <div key={name}>
+            {memberNames.map((name, i) => (
+              <div key={i}>
                 <label style={styles.label}>{name}의 한줄평</label>
-                <input style={styles.input} placeholder="한 줄로 남겨보세요" value={form.reviews[name] || ""} onChange={e => setForm(f => ({ ...f, reviews: { ...f.reviews, [name]: e.target.value } }))} />
+                <input
+                  style={styles.input}
+                  placeholder="한 줄로 남겨보세요"
+                  value={form.reviews[String(i)] || ""}
+                  onChange={e => setForm(f => ({ ...f, reviews: { ...f.reviews, [String(i)]: e.target.value } }))}
+                />
               </div>
             ))}
             <div style={styles.modalBtns}>
@@ -298,7 +295,7 @@ export default function App() {
         <div style={styles.overlay} onClick={() => setShowSettings(false)}>
           <div style={styles.modal} onClick={e => e.stopPropagation()}>
             <div style={styles.modalTitle}>멤버 이름 설정</div>
-            <div style={{ fontSize: 12, color: "#7a6f5e", marginBottom: 16 }}>변경하면 3명 모두에게 반영돼요</div>
+            <div style={{ fontSize: 12, color: "#7a6f5e", marginBottom: 16 }}>이름을 바꿔도 기존 한줄평은 그대로예요 😊</div>
             {[0, 1, 2].map(i => (
               <div key={i}>
                 <label style={styles.label}>멤버 {i + 1}</label>
