@@ -169,6 +169,7 @@ export default function App() {
     <div style={{ ...styles.root, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
       <div style={{ fontSize: 40 }}>📚</div>
       <div style={{ color: "#7a6f5e", fontSize: 14 }}>불러오는 중...</div>
+      <div style={styles.title}>SamBrary</div>
     </div>
   );
 
