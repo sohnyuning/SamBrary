@@ -180,7 +180,7 @@ export default function App() {
         <div style={styles.headerLeft}>
           <div style={styles.logo}>📚</div>
           <div>
-            <div style={styles.title}>🌃SamBrary📚</div>
+            <div style={styles.title}>SamBrary</div>
             <div style={styles.subtitle}>{saving ? "저장 중..." : syncText}{" · "}{records.length}권의 기록</div>
           </div>
         </div>
