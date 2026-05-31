@@ -21,11 +21,8 @@ async function sbFetch(path, options = {}) {
       ...(options.headers || {}),
     },
   });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err);
-  }
   const text = await res.text();
+  if (!res.ok) throw new Error(text);
   return text ? JSON.parse(text) : null;
 }
 
@@ -43,6 +40,10 @@ export default function App() {
   const [form, setForm] = useState({ date: "", book: "", author: "", reviews: {} });
   const [expandedId, setExpandedId] = useState(null);
 
+  // 한줄평 인라인 편집 상태
+  const [editingReview, setEditingReview] = useState(null); // { recordId, memberName }
+  const [editingText, setEditingText] = useState("");
+
   const loadData = useCallback(async () => {
     try {
       setError(null);
@@ -55,7 +56,7 @@ export default function App() {
       if (memberSetting) setMemberNames(memberSetting.value);
       setLastSync(new Date());
     } catch (e) {
-      setError("데이터를 불러오지 못했어요. 잠시 후 다시 시도해보세요.");
+      setError("데이터를 불러오지 못했어요.");
     } finally {
       setLoading(false);
     }
@@ -78,21 +79,20 @@ export default function App() {
     if (!form.book.trim()) return;
     setSaving(true);
     try {
-      const newRecord = {
-        id: Date.now(),
-        date: form.date,
-        book: form.book.trim(),
-        author: form.author.trim(),
-        reviews: form.reviews,
-      };
       await sbFetch("records", {
         method: "POST",
-        body: JSON.stringify(newRecord),
+        body: JSON.stringify({
+          id: Date.now(),
+          date: form.date,
+          book: form.book.trim(),
+          author: form.author.trim(),
+          reviews: form.reviews,
+        }),
       });
       await loadData();
       setShowForm(false);
     } catch (e) {
-      alert("저장에 실패했어요. 다시 시도해보세요.");
+      alert("저장에 실패했어요: " + e.message);
     } finally {
       setSaving(false);
     }
@@ -102,10 +102,36 @@ export default function App() {
     if (!confirm("이 기록을 삭제할까요?")) return;
     setSaving(true);
     try {
-      await sbFetch(`records?id=eq.${id}`, { method: "DELETE" });
+      await sbFetch(`records?id=eq.${id}`, { method: "DELETE", headers: { "Prefer": "" } });
       await loadData();
     } catch (e) {
       alert("삭제에 실패했어요.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // 한줄평 편집 시작
+  function startEditReview(e, recordId, memberName, currentText) {
+    e.stopPropagation();
+    setEditingReview({ recordId, memberName });
+    setEditingText(currentText || "");
+  }
+
+  // 한줄평 저장
+  async function saveReview(recordId) {
+    setSaving(true);
+    try {
+      const rec = records.find(r => r.id === recordId);
+      const newReviews = { ...rec.reviews, [editingReview.memberName]: editingText.trim() };
+      await sbFetch(`records?id=eq.${recordId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ reviews: newReviews }),
+      });
+      setEditingReview(null);
+      await loadData();
+    } catch (e) {
+      alert("저장에 실패했어요: " + e.message);
     } finally {
       setSaving(false);
     }
@@ -115,7 +141,6 @@ export default function App() {
     setSaving(true);
     try {
       const trimmed = editingNames.map((n, i) => n.trim() || `멤버 ${i + 1}`);
-      // migrate existing records
       const oldNames = memberNames;
       for (const rec of records) {
         const newReviews = {};
@@ -159,24 +184,19 @@ export default function App() {
           <div style={styles.logo}>📚</div>
           <div>
             <div style={styles.title}>우리의 독서모임</div>
-            <div style={styles.subtitle}>
-              {saving ? "저장 중..." : syncText}{" · "}{records.length}권의 기록
-            </div>
+            <div style={styles.subtitle}>{saving ? "저장 중..." : syncText}{" · "}{records.length}권의 기록</div>
           </div>
         </div>
         <div style={styles.headerRight}>
-          <button style={styles.iconBtn} onClick={loadData} title="새로고침">🔄</button>
-          <button style={styles.iconBtn} onClick={() => { setEditingNames([...memberNames]); setShowSettings(true); }} title="멤버 설정">⚙️</button>
+          <button style={styles.iconBtn} onClick={loadData}>🔄</button>
+          <button style={styles.iconBtn} onClick={() => { setEditingNames([...memberNames]); setShowSettings(true); }}>⚙️</button>
           <button style={styles.addBtn} onClick={openForm}>+ 새 기록</button>
         </div>
       </header>
 
       <main style={styles.main}>
         {error && <div style={styles.errorBox}>{error}</div>}
-
-        <div style={styles.notice}>
-          🔗 3명이 실시간으로 공유되는 독서모임 기록장 · 15초마다 자동 새로고침
-        </div>
+        <div style={styles.notice}>🔗 3명이 실시간 공유 · 한줄평은 연필 눌러서 수정 가능해요</div>
 
         {records.length === 0 && !error && (
           <div style={styles.empty}>
@@ -189,8 +209,8 @@ export default function App() {
         {records.map((rec, idx) => {
           const isOpen = expandedId === rec.id;
           return (
-            <div key={rec.id} style={styles.card} onClick={() => setExpandedId(isOpen ? null : rec.id)}>
-              <div style={styles.cardTop}>
+            <div key={rec.id} style={styles.card}>
+              <div style={styles.cardTop} onClick={() => setExpandedId(isOpen ? null : rec.id)}>
                 <div style={styles.cardEmoji}>{emoji(idx)}</div>
                 <div style={styles.cardInfo}>
                   <div style={styles.bookTitle}>{rec.book}</div>
@@ -202,16 +222,45 @@ export default function App() {
                   <div style={{ ...styles.chevron, transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</div>
                 </div>
               </div>
+
               {isOpen && (
                 <div style={styles.reviews}>
-                  {memberNames.map(name => (
-                    <div key={name} style={styles.reviewRow}>
-                      <div style={styles.reviewName}>{name}</div>
-                      <div style={styles.reviewText}>
-                        {rec.reviews?.[name] || <span style={{ opacity: 0.35 }}>기록 없음</span>}
+                  {memberNames.map(name => {
+                    const isEditing = editingReview?.recordId === rec.id && editingReview?.memberName === name;
+                    return (
+                      <div key={name} style={styles.reviewRow}>
+                        <div style={styles.reviewName}>{name}</div>
+                        <div style={{ flex: 1 }}>
+                          {isEditing ? (
+                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                              <input
+                                autoFocus
+                                style={styles.reviewInput}
+                                value={editingText}
+                                onChange={e => setEditingText(e.target.value)}
+                                onKeyDown={e => { if (e.key === "Enter") saveReview(rec.id); if (e.key === "Escape") setEditingReview(null); }}
+                                placeholder="한 줄로 남겨보세요"
+                                onClick={e => e.stopPropagation()}
+                              />
+                              <button style={styles.saveReviewBtn} onClick={e => { e.stopPropagation(); saveReview(rec.id); }} disabled={saving}>✓</button>
+                              <button style={styles.cancelReviewBtn} onClick={e => { e.stopPropagation(); setEditingReview(null); }}>✕</button>
+                            </div>
+                          ) : (
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div style={styles.reviewText}>
+                                {rec.reviews?.[name] || <span style={{ opacity: 0.35 }}>아직 한줄평이 없어요</span>}
+                              </div>
+                              <button
+                                style={styles.editReviewBtn}
+                                onClick={e => startEditReview(e, rec.id, name, rec.reviews?.[name])}
+                                title="수정"
+                              >✏️</button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -230,6 +279,7 @@ export default function App() {
             <label style={styles.label}>저자</label>
             <input style={styles.input} placeholder="예: 한강" value={form.author} onChange={e => setForm(f => ({ ...f, author: e.target.value }))} />
             <div style={styles.divider} />
+            <div style={{ fontSize: 12, color: "#7a6f5e" }}>* 한줄평은 나중에 카드에서도 수정할 수 있어요</div>
             {memberNames.map(name => (
               <div key={name}>
                 <label style={styles.label}>{name}의 한줄평</label>
@@ -238,9 +288,7 @@ export default function App() {
             ))}
             <div style={styles.modalBtns}>
               <button style={styles.cancelBtn} onClick={() => setShowForm(false)}>취소</button>
-              <button style={styles.submitBtn} onClick={handleSubmit} disabled={!form.book.trim() || saving}>
-                {saving ? "저장 중..." : "저장하기"}
-              </button>
+              <button style={styles.submitBtn} onClick={handleSubmit} disabled={!form.book.trim() || saving}>{saving ? "저장 중..." : "저장하기"}</button>
             </div>
           </div>
         </div>
@@ -285,8 +333,8 @@ const styles = {
   empty: { textAlign: "center", padding: "80px 0", opacity: 0.5 },
   emptyText: { fontSize: 18, marginTop: 16, color: "#e8e2d5" },
   emptySubtext: { fontSize: 13, marginTop: 8, color: "#7a6f5e" },
-  card: { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "18px 20px", cursor: "pointer" },
-  cardTop: { display: "flex", alignItems: "flex-start", gap: 14 },
+  card: { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "18px 20px" },
+  cardTop: { display: "flex", alignItems: "flex-start", gap: 14, cursor: "pointer" },
   cardEmoji: { fontSize: 24, flexShrink: 0, marginTop: 2 },
   cardInfo: { flex: 1, minWidth: 0 },
   bookTitle: { fontSize: 17, fontWeight: "bold", color: "#f0e8d5", letterSpacing: "-0.01em" },
@@ -295,10 +343,14 @@ const styles = {
   cardActions: { display: "flex", alignItems: "center", gap: 8, flexShrink: 0 },
   deleteBtn: { background: "none", border: "none", cursor: "pointer", fontSize: 14, opacity: 0.3, padding: 4, color: "#e8e2d5" },
   chevron: { color: "#7a6f5e", fontSize: 18, transition: "transform 0.25s ease", userSelect: "none" },
-  reviews: { marginTop: 16, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 16, display: "flex", flexDirection: "column", gap: 12 },
+  reviews: { marginTop: 16, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 16, display: "flex", flexDirection: "column", gap: 14 },
   reviewRow: { display: "flex", gap: 12, alignItems: "flex-start" },
-  reviewName: { flexShrink: 0, width: 60, fontSize: 11, fontWeight: "bold", color: "#c8a96e", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 2 },
+  reviewName: { flexShrink: 0, width: 60, fontSize: 11, fontWeight: "bold", color: "#c8a96e", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 },
   reviewText: { flex: 1, fontSize: 14, color: "#c8bfb0", lineHeight: 1.6, fontStyle: "italic" },
+  editReviewBtn: { background: "none", border: "none", cursor: "pointer", fontSize: 13, opacity: 0.4, padding: 2, flexShrink: 0 },
+  reviewInput: { flex: 1, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(200,169,110,0.4)", borderRadius: 8, padding: "6px 10px", color: "#e8e2d5", fontSize: 14, fontFamily: "inherit", outline: "none", width: "100%" },
+  saveReviewBtn: { background: "#c8a96e", border: "none", borderRadius: 6, padding: "5px 8px", color: "#0f0e0c", fontWeight: "bold", cursor: "pointer", fontSize: 13, flexShrink: 0 },
+  cancelReviewBtn: { background: "rgba(255,255,255,0.08)", border: "none", borderRadius: 6, padding: "5px 8px", color: "#7a6f5e", cursor: "pointer", fontSize: 13, flexShrink: 0 },
   overlay: { position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 },
   modal: { background: "#1a1814", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 420, maxHeight: "90vh", overflowY: "auto" },
   modalTitle: { fontSize: 18, fontWeight: "bold", color: "#f0e8d5", marginBottom: 20, letterSpacing: "-0.01em" },
