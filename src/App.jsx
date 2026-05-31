@@ -341,7 +341,7 @@ const styles = {
   bookDate: { fontSize: 12, color: "#5a5248", marginTop: 5 },
   cardActions: { display: "flex", alignItems: "center", gap: 8, flexShrink: 0 },
   deleteBtn: { background: "none", border: "none", cursor: "pointer", fontSize: 14, opacity: 0.3, padding: 4, color: "#e8e2d5" },
-  chevron: { color: "#7a6f5e", fontSize: 18, transition: "transform 0.25s ease", userSelect: "none" },
+  chevron: { color: "#7a6f5e", fontSize: 28, transition: "transform 0.25s ease", userSelect: "none" },
   reviews: { marginTop: 16, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 16, display: "flex", flexDirection: "column", gap: 14 },
   reviewRow: { display: "flex", gap: 12, alignItems: "flex-start" },
   reviewName: { flexShrink: 0, width: 60, fontSize: 11, fontWeight: "bold", color: "#c8a96e", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 },
