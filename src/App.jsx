@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 
 const SUPABASE_URL = "https://nngarqnhakdmiwuthdtt.supabase.co";
-const SUPABASE_KEY = "sb_publishable_6eJXwd-CymM5A8n-32gTqg_wEcht30T";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5uZ2FycW5oYWtkbWl3dXRoZHR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMjg2NjMsImV4cCI6MjA5NTgwNDY2M30.SsV_q-
+";
 
 const EMOJIS = ["📖", "🌿", "🔥", "🌊", "🌙", "✨", "🍂", "🖋️"];
 
