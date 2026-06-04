@@ -29,7 +29,7 @@ async function sbFetch(path, options = {}) {
 
 export default function App() {
   const [records, setRecords] = useState([]);
-  const [memberNames, setMemberNames] = useState(["멤버1", "멤버2", "멤버3"]);
+  const [memberNames, setMemberNames] = useState(["멤버1", "멤버2", "멤버3","멤버4"]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [lastSync, setLastSync] = useState(null);
@@ -37,7 +37,7 @@ export default function App() {
 
   const [showForm, setShowForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [editingNames, setEditingNames] = useState(["멤버1", "멤버2", "멤버3"]);
+  const [editingNames, setEditingNames] = useState(["멤버1", "멤버2", "멤버3","멤버4"]);
   const [form, setForm] = useState({ date: "", book: "", author: "", reviews: {} });
   const [expandedId, setExpandedId] = useState(null);
   const [editingReview, setEditingReview] = useState(null);
@@ -73,7 +73,7 @@ export default function App() {
       date: new Date().toISOString().split("T")[0],
       book: "",
       author: "",
-      reviews: { "0": "", "1": "", "2": "" }
+      reviews: { "0": "", "1": "", "2": "","3": "" }
     });
     setShowForm(true);
   }
@@ -193,7 +193,7 @@ export default function App() {
 
       <main style={styles.main}>
         {error && <div style={styles.errorBox}>{error}</div>}
-        <div style={styles.notice}>🔗 3명이 실시간 공유 · ✏️ 눌러서 한줄평 수정 가능</div>
+        <div style={styles.notice}>🔗 4명이 실시간 공유 · ✏️ 눌러서 한줄평 수정 가능</div>
 
         {records.length === 0 && !error && (
           <div style={styles.empty}>
@@ -298,7 +298,7 @@ export default function App() {
           <div style={styles.modal} onClick={e => e.stopPropagation()}>
             <div style={styles.modalTitle}>멤버 이름 설정</div>
             <div style={{ fontSize: 12, color: "#7a6f5e", marginBottom: 16 }}>이름을 바꿔도 기존 한줄평은 그대로예요 😊</div>
-            {[0, 1, 2].map(i => (
+            {[0, 1, 2, 3].map(i => (
               <div key={i}>
                 <label style={styles.label}>멤버 {i + 1}</label>
                 <input style={styles.input} value={editingNames[i]} onChange={e => { const arr = [...editingNames]; arr[i] = e.target.value; setEditingNames(arr); }} />
